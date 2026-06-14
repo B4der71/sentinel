@@ -1,10 +1,9 @@
-"""Open redirect plugin.
+"""
+Open Redirect detection plugin.
 
-For each parameter whose name or value looks redirect-related (url, next,
-return, redirect, dest, ...), inject an external URL and check whether the app
-issues a 3xx Location (or meta-refresh) to the attacker-controlled host.
-Because the HttpClient does not auto-follow redirects, the Location header is
-directly observable.
+Tests redirect-related parameters by supplying an external URL and
+checking whether the application redirects users to an attacker-
+controlled destination.
 """
 from __future__ import annotations
 
@@ -36,6 +35,7 @@ class OpenRedirectPlugin(Plugin):
             else:
                 resp = await ctx.http.get(form.action, params=data, use_cache=False)
 
+            # Inspect redirect target without following redirects.
             location = resp.headers.get("location", "")
             if location and urlparse(location).netloc == _EVIL_HOST:
                 ctx.report(Finding(

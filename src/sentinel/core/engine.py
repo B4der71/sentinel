@@ -1,16 +1,20 @@
-"""The scan engine: orchestrates the whole run.
+"""
+Core scanning engine.
 
-Flow:
-  1. Build scope from the seed (default-deny everything else).
-  2. Authenticate the shared HTTP session.
-  3. Crawl to discover the attack surface (forms + GET endpoints).
-  4. Run every enabled plugin against every form, concurrently and rate-limited.
-  5. Deduplicate findings by their stable key and sort by severity.
-  6. Hand the findings to the reporters.
+Responsible for orchestrating the end-to-end security assessment
+workflow, from target discovery to finding generation.
 
-The engine knows nothing about specific vulnerability classes - it just runs
-``Plugin.run`` objects. That is the Dependency-Inversion payoff: new detection
-capability never requires touching this file.
+Features:
+- Scope-aware scanning
+- Authenticated session support
+- Attack-surface discovery
+- Concurrent plugin execution
+- Finding deduplication and ranking
+- Report-ready result aggregation
+
+The engine is vulnerability-agnostic and interacts with plugins
+through a common interface, allowing new detection capabilities to
+be added without modifying the scanning workflow.
 """
 from __future__ import annotations
 
@@ -99,6 +103,7 @@ class Engine:
                         log.warning(f"plugin {plugin.id} failed on "
                                     f"{form.action}: {exc!r}")
 
+            # Execute every plugin against every discovered form.
             tasks = [run_one(p, f) for f in forms for p in plugins]
             log.info(f"executing {len(tasks)} plugin/form tasks")
             await asyncio.gather(*tasks)
