@@ -1,24 +1,15 @@
-"""SQL injection plugin: error-based, boolean-based, and time-based blind.
-
-Improvements over the original ``check_sqli``:
-
-* The original compared ``res_true.text != res_false.text`` against *different*
-  payloads but the same baseline data, and any difference at all (even a CSRF
-  token or timestamp) was flagged as boolean SQLi - a major false-positive
-  source. Here boolean detection requires a *structured* signal:
-    true-payload response ~= baseline   AND   false-payload response != baseline
-  measured with a similarity ratio, not raw equality.
-* Error-based detection uses DB-specific signatures (and yields a fingerprint)
-  instead of a flat keyword list.
-* Time-based blind is added, gated behind ``aggressive`` and using a
-  fingerprint-appropriate delay payload, confirmed by a second timing trial to
-  avoid one-off network latency false positives.
-* Each finding carries a confidence derived from how many independent signals
-  agreed.
-
-UNION-based detection is scaffolded (column-count discovery) and marked as the
-next technique to flesh out; the interface is identical so it slots in cleanly.
 """
+SQL Injection detection plugin.
+
+Detection techniques:
+- Error-based SQL injection
+- Boolean-based blind SQL injection
+- Time-based blind SQL injection
+
+Multiple detection signals increase finding confidence and may
+allow database fingerprinting.
+"""
+
 from __future__ import annotations
 
 
@@ -157,7 +148,7 @@ class SqliPlugin(Plugin):
         dbms = Dbms.UNKNOWN
         evidence: list[Evidence] = []
 
-        # --- error-based ------------------------------------------------------
+        # Error-based detection
         for payload in self.ERROR_PAYLOADS:
 
             err_data = dict(base_data)
@@ -187,7 +178,7 @@ class SqliPlugin(Plugin):
 
                 break
 
-        # --- boolean-based ----------------------------------------------------
+        # Boolean-based detection
         for true_payload, false_payload in zip(
             self.BOOLEAN_TRUE_PAYLOADS,
             self.BOOLEAN_FALSE_PAYLOADS,
@@ -226,7 +217,7 @@ class SqliPlugin(Plugin):
                 break
 
         
-        # --- time-based blind (gated) ----------------------------------------
+        # Time-based blind detection (aggressive mode only)
         if ctx.scope.allow_aggressive:
             if await self._time_based(ctx, form, param, base_data, dbms):
                 if "time-based blind" not in signals:
