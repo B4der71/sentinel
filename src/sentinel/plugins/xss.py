@@ -1,48 +1,16 @@
 from __future__ import annotations
-"""XSS detection plugin (reflected, with hooks for stored & DOM).
-
-Detection pipeline per parameter:
-
-1. **Probe** - inject a unique benign marker plus a breakout-charset string.
-   No reflection of the marker => not injectable here; stop. This alone kills
-   the bulk of the original's false positives.
-2. **Classify** - determine reflection context(s) and which breakout chars
-   survived un-encoded. If none survive in an exploitable way, we *downgrade*
-   to an informational "reflected input, properly encoded" note rather than a
-   vulnerability.
-3. **Exploit** - send a context-appropriate payload. If it is reflected intact
-   (un-encoded) we have a Firm reflected-XSS finding.
-4. **Verify (optional)** - if a browser engine is attached, load the response
-   and check the sentinel actually executed; success upgrades to Confirmed and
-   attaches a screenshot.
-
-Stored XSS is handled by the same machinery: after submitting a payload we can
-re-crawl/re-fetch known display pages and look for the sentinel (the engine
-passes a list of revisit URLs). DOM XSS requires the browser engine to observe
-sink execution; both are wired through the same `verify` hook.
 """
+Cross-Site Scripting (XSS) detection plugin.
 
-"""Reflection-context analysis for XSS.
+Features:
+- Reflected XSS detection
+- Reflection context analysis (HTML, attributes, scripts, URLs, comments)
+- Context-aware payload selection
+- Exploitability assessment based on surviving breakout characters
+- Optional browser-based verification and screenshot capture
 
-The single biggest source of XSS false positives in the original scanner was
-treating *any* reflection as a vulnerability (``payload.lower() in text``) and,
-worse, flagging on the mere presence of ``<script>`` or ``onerror=`` anywhere
-in the response - which fires on the page's own legitimate scripts.
-
-Instead we inject a unique, benign probe marker, locate every place it is
-reflected, and classify the surrounding context. The context determines:
-
-1. whether reflection is even exploitable, and
-2. which payload shape is needed to break out of it.
-
-We also record which "breakout" characters (`<`, `>`, `"`, `'`) survive
-un-encoded, because if the app HTML-encodes them the reflection is inert.
-""""""Context-aware XSS payloads with mutation/encoding variants.
-
-Rather than firing the same five payloads blindly at every parameter (the
-original approach), we select payloads suited to the reflection context, each
-carrying a unique callback marker so successful execution can be unambiguously
-attributed (and verified in a browser).
+The plugin reduces false positives by verifying that user input is
+both reflected and exploitable within its surrounding context.
 """
 
 import re
@@ -84,9 +52,9 @@ class Reflection:
 
     @property
     def is_exploitable(self) -> bool:
-        # We need to be able to inject the characters that break out of the
-        # current context. If the app encodes them all, it is not exploitable
-        # via this reflection.
+
+        # Reflection is exploitable only if required breakout characters survive.
+       
         if self.context is Context.HTML_TEXT:
             return "<" in self.surviving_chars and ">" in self.surviving_chars
         if self.context is Context.ATTRIBUTE:
@@ -132,19 +100,19 @@ def _context_at(text: str, idx: int, length: int) -> Context:
     before = text[:idx]
     after = text[idx + length:]
 
-    # inside a <script> block?
+    # Script context
     last_script_open = before.rfind("<script")
     last_script_close = before.rfind("</script")
     if last_script_open > last_script_close:
         return Context.SCRIPT
 
-    # inside an HTML comment?
+    # Comment context
     last_comment_open = before.rfind("<!--")
     last_comment_close = before.rfind("-->")
     if last_comment_open > last_comment_close:
         return Context.COMMENT
 
-    # inside a tag (attribute context)? find nearest unclosed '<'
+    # Attribute or URL context
     last_lt = before.rfind("<")
     last_gt = before.rfind(">")
     if last_lt > last_gt:
@@ -191,8 +159,7 @@ class XssPlugin(Plugin):
 
         exploitable = [r for r in reflections if r.is_exploitable]
         if not exploitable:
-            # Reflected but encoded - report as low-confidence informational so
-            # an analyst can review, but NOT as an XSS vulnerability.
+           # Reflected input appears encoded and not exploitable.
             ctx.report(Finding(
                 name="Reflected Input (output appears encoded)",
                 plugin=self.id, severity=Severity.INFO,
@@ -244,7 +211,8 @@ class XssPlugin(Plugin):
                     screenshot_path=screenshot,
                 )],
             ))
-            return  # one confirmed finding per param is enough
+            # Report one finding per parameter.
+            return  
 
     async def _send(self, ctx: ScanContext, form: Form, data: dict[str, str]):
         if form.method == "POST":
@@ -300,7 +268,7 @@ def payloads_for(context: Context, marker: str) -> list[str]:
         return [f"javascript:{js}"]
     if context is Context.COMMENT:
         return [f"--><script>{js}</script>"]
-    # HTML_TEXT / UNKNOWN
+    # Default payloads
     return [
         f"<script>{js}</script>",
         f"<img src=x onerror={js}>",
@@ -308,21 +276,4 @@ def payloads_for(context: Context, marker: str) -> list[str]:
     ]
 
 
-def mutations(payload: str) -> list[str]:
-    """Lightweight WAF/filter-bypass mutations of a payload.
 
-    Kept conservative and benign (no destructive content). Used only after a
-    base payload is reflected-but-filtered, to test for weak blacklisting.
-    """
-    out = [payload]
-    out.append(payload.replace("<script>", "<ScRiPt>").replace("</script>", "</ScRiPt>"))
-    out.append(payload.replace("onerror=", "onerror\t="))
-    out.append(payload.replace("alert", "al\u200bert"))  # zero-width split
-    # de-dup preserving order
-    seen: set[str] = set()
-    uniq: list[str] = []
-    for p in out:
-        if p not in seen:
-            seen.add(p)
-            uniq.append(p)
-    return uniq
