@@ -1,21 +1,17 @@
-"""Async crawler / attack-surface discovery.
+"""
+Asynchronous web crawler and attack-surface discovery engine.
 
-Improvements over the original ``crawl_site``:
+Features:
+- Concurrent page crawling
+- Scope-aware link discovery
+- Depth and page limits
+- robots.txt support
+- HTML form extraction
+- GET parameter discovery from links
+- Optional browser-assisted form discovery
 
-* Async + concurrent fetching via the shared HttpClient (rate-limited).
-* Canonicalised dedup (``param_signature``) instead of raw-string ``visited``.
-* Real scope checks (host *and* optional path prefix) - the original allowed
-  any same-netloc link with a naive ``"logout" not in url`` filter.
-* Depth limiting (the original had only a page cap).
-* robots.txt consultation.
-* Discovers GET attack surface from links carrying query parameters, not just
-  ``<form>`` elements.
-* Captures hidden inputs (kept, not silently dropped) and flags upload forms.
-* A pluggable ``BrowserDiscovery`` hook for JS-rendered forms (see browser
-  layer) that degrades to a no-op when Playwright is not installed.
-
-The bare ``except: continue`` of the original is replaced with narrow handling
-and logging so failures are visible instead of silently swallowed.
+Discovered forms and endpoints are normalized and deduplicated
+before being returned for security testing.
 """
 from __future__ import annotations
 
@@ -66,11 +62,9 @@ def canonicalize(url: str, *, drop_values: bool = False) -> str:
 
 
 def param_signature(url: str) -> str:
-    """Identity of an endpoint by its (path + sorted parameter names).
-
-    Used so ``?id=1`` and ``?id=999`` are recognised as the same testable
-    endpoint and only fuzzed once.
-    """
+    
+    #Generate a stable endpoint signature based on path and parameter names.
+    
     return canonicalize(url, drop_values=True)
 
 
@@ -112,11 +106,8 @@ def extract_forms(page_url: str, html: str) -> list[Form]:
 
 
 def synthesize_get_form(url: str) -> Form | None:
-    """Turn a link with query parameters into a fuzzable GET 'form'.
 
-    This is how we discover GET attack surface (e.g. ``/vulnerabilities/sqli/
-    ?id=1&Submit=Submit``) that has no HTML <form> on the linked-to page.
-    """
+    #Convert a URL with query parameters into a synthetic GET form.
     qs = parse_qsl(urlparse(url).query, keep_blank_values=True)
     if not qs:
         return None
@@ -174,7 +165,7 @@ class Crawler:
         forms: list[Form] = []
         
         while queue and len(self._seen_pages) < self._cfg.max_pages:
-            # process a bounded wave concurrently
+            # Process a batch of pages concurrently.            
             wave, queue = queue[:self._cfg.max_pages], queue[self._cfg.max_pages:]
             tasks = [self._visit(u, d, base_domain) for u, d in wave
                      if self._should_visit(u, d)]
@@ -245,6 +236,7 @@ class Crawler:
                 continue
             canon = canonicalize(full)
 
+            # Treat parameterized links as fuzzable GET endpoints.
             if self._cfg.discover_query_params:
                 gf = synthesize_get_form(full)
                 if gf is not None:
