@@ -1,10 +1,9 @@
-"""CORS misconfiguration plugin.
+"""
+Cross-Origin Resource Sharing (CORS) misconfiguration detection plugin.
 
-Sends a crafted Origin header and inspects the Access-Control-Allow-* response.
-The dangerous combinations are:
-  * reflecting an arbitrary Origin AND Allow-Credentials: true
-  * Allow-Origin: * with credentials
-  * trusting a null origin
+Checks whether a target improperly trusts arbitrary origins or
+allows credentialed cross-origin requests that may expose
+authenticated data.
 """
 from __future__ import annotations
 
@@ -37,6 +36,7 @@ class CorsPlugin(Plugin):
         acao = h.get("access-control-allow-origin", "")
         acac = h.get("access-control-allow-credentials", "").lower()
 
+        # Evaluate Access-Control-Allow-* policy.
         reflected = acao == _EVIL
         wildcard = acao == "*"
 
