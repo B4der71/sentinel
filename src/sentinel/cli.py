@@ -19,6 +19,7 @@ from sentinel.reporter import (
     JsonReporter,
 )
 
+from sentinel import __version__
 
 def _build_config(args: argparse.Namespace) -> Config:
     cfg = Config.load(args.config) if args.config else Config()
@@ -90,38 +91,119 @@ async def _run(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Sentinel - web application security scanner")
-    p.add_argument("-u", "--url", required=True, help="Seed/target URL")
-    p.add_argument("-c", "--config", help="YAML config file")
-    p.add_argument("-o", "--out-dir", default="reports", help="Report output dir")
+    p = argparse.ArgumentParser(
+    description=(
+        "Sentinel - Lightweight plugin-based web application "
+        "security scanner"
+        )
+    )
+    
+
+    p.add_argument(
+    "--version",
+    action="version",
+    version=f"Sentinel {__version__}"
+    )
+
+    p.add_argument(
+    "-u", "--url",
+    required=True,
+    help="Seed or target URL"
+    )
+
+    p.add_argument(
+        "-c", "--config",
+        help="YAML configuration file"
+    )
+
+    p.add_argument(
+        "-o", "--out-dir",
+        default="reports",
+        help="Directory for generated reports"
+    )
 
     p.add_argument("--all", action="store_true", help="Enable all plugins")
-    p.add_argument("--xss", action="store_true")
-    p.add_argument("--sqli", action="store_true")
-    p.add_argument("--headers", action="store_true")
-    p.add_argument("--cors", action="store_true")
-    p.add_argument("--redirect", action="store_true")
+    p.add_argument(
+    "--xss",
+    action="store_true",
+    help="Enable reflected Cross-Site Scripting detection"
+    )
 
-    p.add_argument("--username")
-    p.add_argument("--password")
-    p.add_argument("--login-url")
-    p.add_argument("--bearer", help="Bearer token")
+    p.add_argument(
+        "--sqli",
+        action="store_true",
+        help="Enable SQL Injection detection"
+    )
+
+    p.add_argument(
+        "--headers",
+        action="store_true",
+        help="Check security headers and clickjacking protections"
+    )
+
+    p.add_argument(
+        "--cors",
+        action="store_true",
+        help="Check for CORS misconfigurations"
+    )
+
+    p.add_argument(
+        "--redirect",
+        action="store_true",
+        help="Check for open redirect vulnerabilities"
+    )
+
+    p.add_argument(
+    "--username",
+    help="Username for form-based authentication"
+    )
+
+    p.add_argument(
+        "--password",
+        help="Password for form-based authentication"
+    )
+
+    p.add_argument(
+        "--login-url",
+        help="Login page URL (auto-detected when omitted)"
+    )
+    p.add_argument(
+    "--bearer",
+    help="Bearer token for API authentication"
+    )
 
     p.add_argument(
         "--crawl",
         action="store_true",
         help="Discover and scan the entire attack surface"
     )
-    p.add_argument("--max-pages", type=int)
-    p.add_argument("--max-depth", type=int)
+    p.add_argument(
+    "--max-pages",
+    type=int,
+    help="Maximum number of pages to crawl"
+    )
+
+    p.add_argument(
+        "--max-depth",
+        type=int,
+        help="Maximum crawl depth"
+    )
 
     p.add_argument("--aggressive", action="store_true",
                    help="Enable disruptive techniques (requires confirmation)")
     p.add_argument("-y", "--yes", action="store_true",
                    help="Skip aggressive-scan confirmation (CI use)")
-    p.add_argument("-v", "--verbose", action="store_true")
-    p.add_argument("--log-file")
+    p.add_argument(
+    "-v",
+    "--verbose",
+    action="store_true",
+    help="Enable verbose logging"
+    )
 
+    p.add_argument(
+        "--log-file",
+        help="Write logs to a file"
+    )
     args = p.parse_args()
     raise SystemExit(asyncio.run(_run(args)))
 
