@@ -1,9 +1,9 @@
-"""Missing security headers + clickjacking (passive).
+"""
+Security headers and clickjacking detection plugin.
 
-Demonstrates how little code a new plugin needs: it inspects the baseline
-response headers and emits findings. No payloads, no aggression. Clickjacking
-is folded in here because it is decided by the same headers (X-Frame-Options /
-CSP frame-ancestors).
+Checks for missing security-related HTTP response headers and
+identifies pages that can be embedded in frames due to missing
+frame protection mechanisms.
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ class HeadersPlugin(Plugin):
         self._seen: set[str] = set()
 
     async def run(self, ctx: ScanContext, form: Form) -> None:
-        # one assessment per host is enough; these headers are origin-level
+        # Security headers are evaluated once per host.
         from urllib.parse import urlparse
         host = urlparse(form.action).netloc
         if host in self._seen:
@@ -57,7 +57,7 @@ class HeadersPlugin(Plugin):
                     evidence=[Evidence(description="Header absent from response.")],
                 ))
 
-        # clickjacking: needs XFO or CSP frame-ancestors
+        # Check for frame protection.
         xfo = headers.get("x-frame-options", "").lower()
         csp = headers.get("content-security-policy", "").lower()
         if "deny" not in xfo and "sameorigin" not in xfo and "frame-ancestors" not in csp:
