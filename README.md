@@ -33,17 +33,24 @@ reporting.
 * HTML reporting
 * Executive summaries
 
-## Install
+## Quick Start
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
+git clone https://github.com/B4der71/sentinel.git
+
+cd sentinel
+
+python3 -m venv venv
+source venv/bin/activate
 
 pip install -e .
 
-# Optional browser-assisted verification
-pip install -e ".[browser]"
-playwright install chromium
+```
+Verify the installation:
+
+```bash
+sentinel --version
+sentinel --help
 ```
 
 ## Usage
