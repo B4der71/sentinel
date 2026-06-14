@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+ctf-venv/
+
+# Vim
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Reports
+reports/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Pytest
+.pytest_cache/

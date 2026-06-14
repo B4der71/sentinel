@@ -1,0 +1,38 @@
+# Sentinel example configuration.
+# Run: sentinel -u http://localhost:8080/ -c config/default.yaml
+
+scanner:
+  concurrency: 10        # max in-flight requests
+  timeout: 10            # seconds per request
+  rate_limit: 5          # max requests/second (politeness + safety)
+  retries: 2
+  cache: true
+  allow_aggressive: false  # gates time-based blind SQLi, etc.
+  user_agent: "Sentinel/0.1 (+authorized-security-testing)"
+
+crawler:
+  max_depth: 3
+  max_pages: 200
+  respect_robots: false
+  discover_query_params: true
+
+# Authentication. type: none | form | cookie | bearer | header
+auth:
+  type: none
+  # --- example DVWA form login ---
+  # type: form
+  # login_url: "http://localhost:8080/login.php"
+  # username: "admin"
+  # password: "password"
+  # username_field: "username"
+  # password_field: "password"
+  # --- example token auth ---
+  # type: bearer
+  # token: "eyJhbGci..."
+
+plugins:
+  xss: true
+  sqli: true
+  headers: true
+  cors: true
+  redirect: true
