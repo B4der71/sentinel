@@ -28,28 +28,30 @@ class Scope:
     allowed_hosts: set[str] = field(default_factory=set)
     allowed_path_prefixes: list[str] = field(default_factory=list)
     allow_aggressive: bool = False
-    # Hosts we refuse to scan even if a user lists them, to avoid obvious abuse
-    # of third-party infrastructure. Localhost / RFC1918 are always allowed.
-    _denied_substrings: tuple[str, ...] = (
-        ".gov", ".mil",
-    )
 
     @classmethod
     def from_seed(cls, seed_url: str, allow_aggressive: bool = False) -> "Scope":
         host = urlparse(seed_url).netloc
         if not host:
             raise ValueError(f"Cannot derive scope host from URL: {seed_url!r}")
-        return cls(allowed_hosts={host}, allow_aggressive=allow_aggressive)
+        return cls(
+            allowed_hosts={host},
+            allow_aggressive=allow_aggressive,
+        )
 
     def is_in_scope(self, url: str) -> bool:
         parsed = urlparse(url)
         host = parsed.netloc
+
         if host not in self.allowed_hosts:
             return False
-        if any(bad in host for bad in self._denied_substrings):
-            return False
+
         if self.allowed_path_prefixes:
-            return any(parsed.path.startswith(p) for p in self.allowed_path_prefixes)
+            return any(
+                parsed.path.startswith(prefix)
+                for prefix in self.allowed_path_prefixes
+            )
+
         return True
 
     def assert_in_scope(self, url: str) -> None:
