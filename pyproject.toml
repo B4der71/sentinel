@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sentinel-scanner"
-version = "0.1.0"
+version = "0.1.1"
 description = "Lightweight plugin-based web application security scanner (authorized testing only)"
 readme = "README.md"
 requires-python = ">=3.11"
