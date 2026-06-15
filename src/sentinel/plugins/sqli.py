@@ -26,6 +26,8 @@ from enum import Enum
 
 
 
+from urllib.parse import quote
+
 class Dbms(str, Enum):
     MYSQL = "MySQL"
     POSTGRES = "PostgreSQL"
@@ -70,6 +72,20 @@ def time_payload(dbms: Dbms, seconds: int = 5) -> str:
         Dbms.UNKNOWN: f"' OR SLEEP({seconds})-- -",
     }[dbms]
 
+def mutations(payload: str) -> list[str]:
+    """
+    Generate common payload encodings.
+
+    Example:
+        '
+        %27
+        %2527
+    """
+    return [
+        payload,
+        quote(payload),
+        quote(quote(payload)),
+    ]
 
 
 def similarity(a: str, b: str) -> float:
@@ -150,33 +166,42 @@ class SqliPlugin(Plugin):
 
         # Error-based detection
         for payload in self.ERROR_PAYLOADS:
+            for variant in mutations(payload):
 
-            err_data = dict(base_data)
-            err_data[param] = payload
+                
 
-            err_resp = await self._send(ctx, form, err_data)
+                err_data = dict(base_data)
+                err_data[param] = variant
 
-            if (
-                has_sql_error(err_resp.text)
-                and not has_sql_error(baseline.text)
-            ):
+                err_resp = await self._send(ctx, form, err_data)
 
-                dbms = fingerprint_from_error(err_resp.text)
+                if (
+                    has_sql_error(err_resp.text)
+                    and not has_sql_error(baseline.text)
+                ):
 
-                signals.append("error-based")
+                    dbms = fingerprint_from_error(err_resp.text)
 
-                evidence.append(
-                    Evidence(
-                        description=(
-                            f"Database error provoked by payload "
-                            f"'{payload}' (fingerprint: {dbms.value})."
-                        ),
-                        request=payload,
-                        response_excerpt=self._error_excerpt(err_resp.text),
+                    signals.append("error-based")
+
+                    evidence.append(
+                        Evidence(
+                            description=(
+                                f"Database error provoked by payload "
+                                f"'{variant}' "
+                                f"(fingerprint: {dbms.value})."
+                            ),
+                            request=variant,
+                            response_excerpt=self._error_excerpt(err_resp.text),
+                        )
                     )
-                )
 
+                    break
+
+            if "error-based" in signals:
                 break
+
+            
 
         # Boolean-based detection
         for true_payload, false_payload in zip(
