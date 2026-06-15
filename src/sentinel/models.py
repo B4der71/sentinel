@@ -123,6 +123,10 @@ class Finding:
     parameter: str | None = None
     method: str = "GET"
     payload: str | None = None
+
+    database: str | None = None
+    techniques: list[str] = field(default_factory=list)
+
     cvss: float | None = None
 
     description: str = ""

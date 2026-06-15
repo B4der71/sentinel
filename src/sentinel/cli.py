@@ -85,8 +85,32 @@ async def _run(args: argparse.Namespace) -> int:
     log.info(f"reports written to {out}/ "
              f"(report.json, report.html, executive_summary.md)")
     for f in findings:
-        print(f"[{f.severity.value:<13}] {f.confidence.value:<9} "
-              f"{f.name} :: {f.url} ({f.parameter})")
+        print(
+            f"[{f.severity.value:<13}] "
+            f"{f.confidence.value:<9} "
+            f"{f.name}"
+        )
+
+        print(f"  URL:        {f.url}")
+
+        if f.parameter:
+            print(f"  Parameter:  {f.parameter}")
+
+        print(f"  Method:     {f.method}")
+
+        if getattr(f, "database", None):
+            print(f"  Database:   {f.database}")
+
+        if getattr(f, "techniques", None):
+            print(
+                f"  Techniques: "
+                f"{', '.join(f.techniques)}"
+            )
+
+        if f.payload:
+            print(f"  Payload:    {repr(f.payload)}")
+
+        print()
     return 0
 
 
@@ -117,9 +141,7 @@ def main() -> None:
     )
 
     p.add_argument(
-        "-o", "--out-dir",
-        default="reports",
-        help="Directory for generated reports"
+        "-o", "--out-dir",  default="reports",help="Directory for generated reports"
     )
 
     p.add_argument("--all", action="store_true", help="Enable all plugins")

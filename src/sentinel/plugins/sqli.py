@@ -209,37 +209,60 @@ class SqliPlugin(Plugin):
             self.BOOLEAN_FALSE_PAYLOADS,
         ):
 
-            true_data = dict(base_data)
-            true_data[param] = true_payload
+            found = False
 
-            false_data = dict(base_data)
-            false_data[param] = false_payload
+            for true_variant in mutations(true_payload):
+                for false_variant in mutations(false_payload):
 
-            r_true = await self._send(ctx, form, true_data)
-            r_false = await self._send(ctx, form, false_data)
+                    true_data = dict(base_data)
+                    true_data[param] = true_variant
 
-            sim_true = similarity(baseline.text, r_true.text)
-            sim_false = similarity(baseline.text, r_false.text)
+                    false_data = dict(base_data)
+                    false_data[param] = false_variant
 
-            if (
-                sim_true > 0.95
-                and sim_false < 0.90
-                and (sim_true - sim_false) > 0.08
-            ):
-                signals.append("boolean-based")
+                    r_true = await self._send(ctx, form, true_data)
+                    r_false = await self._send(ctx, form, false_data)
 
-                evidence.append(
-                    Evidence(
-                        description=(
-                            "Boolean condition changed the response: "
-                            f"sim(true)={sim_true:.2f}, "
-                            f"sim(false)={sim_false:.2f}."
-                        ),
-                        request=f"true:{true_payload} / false:{false_payload}",
+                    sim_true = similarity(
+                        baseline.text,
+                        r_true.text,
                     )
-                )
 
-                break
+                    sim_false = similarity(
+                        baseline.text,
+                        r_false.text,
+                    )
+
+                    if (
+                        sim_true > 0.95
+                        and sim_false < 0.90
+                        and (sim_true - sim_false) > 0.08
+                    ):
+
+                        signals.append("boolean-based")
+
+                        evidence.append(
+                            Evidence(
+                                description=(
+                                    "Boolean condition changed the response: "
+                                    f"sim(true)={sim_true:.2f}, "
+                                    f"sim(false)={sim_false:.2f}."
+                                ),
+                                request=(
+                                    f"true:{true_variant} / "
+                                    f"false:{false_variant}"
+                                ),
+                            )
+                        )
+
+                        found = True
+                        break
+
+                if found:
+                    break
+
+            if found:
+                break   
 
         
         # Time-based blind detection (aggressive mode only)
@@ -256,7 +279,7 @@ class SqliPlugin(Plugin):
                         ),
                     )
                 )
-
+        
         if not signals:
             return
 
@@ -291,12 +314,22 @@ class SqliPlugin(Plugin):
 
                 payload=detected_payload,
 
+                database=(
+                    dbms.value
+                    if dbms is not Dbms.UNKNOWN
+                    else None
+                ),
+
+                techniques=signals,
+
+                
                 description=(
-                    f"Parameter '{param}' is injectable via {method}"
+                    f"Parameter '{param}' appears vulnerable to SQL Injection. "
+                    f"Detection techniques: {', '.join(signals)}."
                     + (
-                        f"; backend appears to be {dbms.value}."
+                        f" Backend database appears to be {dbms.value}."
                         if dbms is not Dbms.UNKNOWN
-                        else "."
+                        else ""
                     )
                 ),
 
