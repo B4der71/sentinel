@@ -124,9 +124,13 @@ def main() -> None:
     
 
     p.add_argument(
-    "--version",
-    action="version",
-    version=f"Sentinel {__version__}"
+        "--version",
+        action="version",
+        version=(
+            f"Sentinel {__version__}\n"
+            "Author: Bader Alwashah\n"
+            "GitHub: https://github.com/B4der71"
+        ),
     )
 
     p.add_argument(

@@ -157,21 +157,45 @@ class XssPlugin(Plugin):
         if not reflections:
             return  # no reflection => no reflected XSS here
 
+        # First reflection (used for informational reporting)
+        reflection = reflections[0]
+
         exploitable = [r for r in reflections if r.is_exploitable]
         if not exploitable:
            # Reflected input appears encoded and not exploitable.
-            ctx.report(Finding(
-                name="Reflected Input (output appears encoded)",
-                plugin=self.id, severity=Severity.INFO,
-                confidence=Confidence.TENTATIVE, cwe="CWE-79",
-                url=form.action, parameter=param, method=form.method,
-                description="User input is reflected but breakout characters "
-                            "appear to be encoded; not exploitable as observed.",
-                remediation="Confirm contextual output encoding remains in place.",
-            ))
+            ctx.report(
+                Finding(
+                    name="Reflected Input (Output Encoded)",
+                    plugin=self.id,
+                    severity=Severity.INFO,
+                    confidence=Confidence.TENTATIVE,
+
+                    cwe="CWE-79",
+
+                    url=form.action,
+                    parameter=param,
+                    method=form.method,
+
+                    techniques=["reflection"],
+
+                    description=(
+                        f"Parameter '{param}' is reflected in a "
+                        f"{reflection.context.value} context, but the required "
+                        "breakout characters appear to be safely encoded. "
+                        "No exploitable Cross-Site Scripting was observed."
+                    ),
+
+                    remediation=(
+                        "Continue applying context-aware output encoding. "
+                        "Verify that all user-controlled data is encoded for its "
+                        "HTML, attribute, JavaScript, CSS, or URL context."
+                    ),
+                )
+            )
             return
 
         reflection = exploitable[0]
+        
         for payload in payloads_for(reflection.context, marker):
             data[param] = payload
             r2 = await self._send(ctx, form, data)
@@ -187,29 +211,56 @@ class XssPlugin(Plugin):
 
             ctx.report(Finding(
                 name="Reflected Cross-Site Scripting",
-                plugin=self.id, severity=Severity.HIGH, confidence=confidence,
-                cwe="CWE-79", cvss=6.1,
-                url=form.action, parameter=param, method=form.method,
+                plugin=self.id,
+                severity=Severity.HIGH,
+                confidence=confidence,
+                cwe="CWE-79",
+                cvss=6.1,
+
+                url=form.action,
+                parameter=param,
+                method=form.method,
+
                 payload=payload,
-                description=f"Input to parameter '{param}' is reflected without "
-                            f"adequate encoding in a {reflection.context.value} "
-                            f"context, allowing script injection.",
-                remediation="Apply context-aware output encoding (HTML, attribute, "
-                            "JS, URL) and a strict Content-Security-Policy. Prefer "
-                            "framework auto-escaping; never build markup by string "
-                            "concatenation of untrusted input.",
+
+                techniques=(
+                    ["reflected", "browser-confirmed"]
+                    if confidence is Confidence.CONFIRMED
+                    else ["reflected"]
+                ),
+
+                description=(
+                    f"Parameter '{param}' reflects user input in a "
+                    f"{reflection.context.value} context without adequate "
+                    f"output encoding, allowing Cross-Site Scripting."
+                ),
+
+                remediation=(
+                    "Apply context-aware output encoding (HTML, attribute, "
+                    "JavaScript and URL contexts). Enforce a strict "
+                    "Content-Security-Policy and avoid constructing HTML "
+                    "using untrusted input."
+                ),
+
                 reproduction=[
                     f"Send a {form.method} request to {form.action}",
                     f"Set parameter '{param}' to: {payload}",
-                    "Observe the payload reflected un-encoded in the response "
-                    "(and executing in a browser).",
+                    "Observe the payload reflected in the response.",
+                    "If browser verification is enabled, confirm JavaScript execution.",
                 ],
-                evidence=[Evidence(
-                    description="Payload reflected un-encoded in response.",
-                    request=f"{form.method} {form.action} {param}={payload}",
-                    response_excerpt=self._excerpt(r2.text, payload),
-                    screenshot_path=screenshot,
-                )],
+
+                evidence=[
+                    Evidence(
+                        description=(
+                            "Payload executed successfully in a browser."
+                            if confidence is Confidence.CONFIRMED
+                            else "Payload reflected in the response."
+                        ),
+                        request=f"{form.method} {form.action} {param}={payload}",
+                        response_excerpt=self._excerpt(r2.text, payload),
+                        screenshot_path=screenshot,
+                    )
+                ],
             ))
             # Report one finding per parameter.
             return  

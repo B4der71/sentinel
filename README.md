@@ -1,8 +1,9 @@
 # Sentinel
 
-A lightweight, plugin-based web application security scanner — a small,
-hackable alternative to OWASP ZAP focused on automated detection of common web
-vulnerabilities.
+A lightweight, plugin-based web application security scanner designed for
+automated detection of common web vulnerabilities. Sentinel provides a
+minimal, extensible alternative to OWASP ZAP for security testing,
+experimentation, and education.
 
 Sentinel provides authenticated scanning, attack-surface discovery,
 plugin-based vulnerability detection, confidence scoring, and multi-format
@@ -14,7 +15,7 @@ reporting.
 
 ### Implemented Modules
 
-* Reflected XSS
+* Reflected XSS with browser confirmation
 * SQL Injection
 * Security Headers
 * CORS Misconfiguration
@@ -23,6 +24,8 @@ reporting.
 ### Core Capabilities
 
 * Authenticated scanning
+* Optional browser-confirmed XSS verification (Playwright)
+* Screenshot evidence for confirmed XSS
 * Async crawling
 * Scope enforcement
 * Rate limiting
@@ -46,6 +49,17 @@ source venv/bin/activate
 pip install -e .
 
 ```
+### Optional: Browser Verification
+
+
+To enable browser-confirmed XSS detection:
+
+```bash
+pip install ".[browser]"
+playwright install chromium
+```
+
+
 Verify the installation:
 
 ```bash
@@ -88,10 +102,9 @@ sentinel \
 ## Example Output
 
 ```text
-[High   ] Firm      SQL Injection
-[Medium ] Confirmed Missing Security Header
-[Medium ] Firm      Clickjacking
-[Low    ] Confirmed Missing X-Content-Type-Options
+[High   ] Confirmed Reflected Cross-Site Scripting
+[High   ] Confirmed SQL Injection
+[Medium ] Firm      Missing Security Header
 ```
 
 ## Safety Controls
@@ -164,3 +177,11 @@ See `ARCHITECTURE.md` for:
 * Confidence model
 * Security controls
 * Future roadmap
+
+## Author
+
+**Bader Alwashah**
+
+Creator and Maintainer of Sentinel
+
+GitHub: https://github.com/B4der71

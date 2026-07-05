@@ -19,6 +19,7 @@ be added without modifying the scanning workflow.
 from __future__ import annotations
 
 import asyncio
+from urllib.parse import urlsplit
 
 from sentinel.models import Finding, Form
 
@@ -38,6 +39,8 @@ from sentinel.crawler import (
 
 from sentinel.logging_setup import log
 
+from sentinel.browser.playwright_engine import BrowserEngine
+
 
 class Engine:
     def __init__(self, config: Config) -> None:
@@ -45,13 +48,17 @@ class Engine:
         self._pm = PluginManager(config)
 
     async def scan(self, seed: str) -> list[Finding]:
-        scope = Scope.from_seed(seed,
-                                allow_aggressive=self._config.scanner.allow_aggressive)
+        scope = Scope.from_seed(
+            seed,
+            allow_aggressive=self._config.scanner.allow_aggressive,
+        )
         plugins = self._pm.load()
+        needs_browser = any(p.id == "xss" for p in plugins)        
 
         async with HttpClient(self._config.scanner, scope) as http:
             await SessionManager(self._config.auth).authenticate(http)
-
+            
+            
             if self._config.crawler.enabled:
                 robots = RobotsPolicy(self._config.scanner.user_agent)
                 crawler = Crawler(
@@ -89,24 +96,61 @@ class Engine:
                             )
                         ]
 
-            ctx = ScanContext(http=http, scope=scope, config=self._config)
+            browser = None
 
-            sem = asyncio.Semaphore(self._config.scanner.concurrency)
+            try:
+                if needs_browser and BrowserEngine.available():
+                    
+                    parsed = urlsplit(seed)
+                    origin = f"{parsed.scheme}://{parsed.netloc}"
+                    
+                    cookies = [
+                        {
+                            "name": c.name,
+                            "value": c.value,
+                            "url": origin,
+                            "httpOnly": False,
+                            "secure": False,
+                        }
+                        for c in http._client.cookies.jar
+                    ]
 
-            async def run_one(plugin, form: Form) -> None:
-                if not plugin.can_run(ctx):
-                    return
-                async with sem:
-                    try:
-                        await plugin.run(ctx, form)
-                    except Exception as exc:  # noqa: BLE001
-                        log.warning(f"plugin {plugin.id} failed on "
-                                    f"{form.action}: {exc!r}")
+                    browser = await BrowserEngine(
+                        cookies=cookies,
+                    ).__aenter__()
 
-            # Execute every plugin against every discovered form.
-            tasks = [run_one(p, f) for f in forms for p in plugins]
-            log.info(f"executing {len(tasks)} plugin/form tasks")
-            await asyncio.gather(*tasks)
+                ctx = ScanContext(
+                    http=http,
+                    scope=scope,
+                    config=self._config,
+                    browser=browser,
+                )
+
+                sem = asyncio.Semaphore(self._config.scanner.concurrency)
+
+                async def run_one(plugin, form: Form) -> None:
+                    if not plugin.can_run(ctx):
+                        return
+
+                    async with sem:
+                        try:
+                            await plugin.run(ctx, form)
+                        except Exception as exc:  # noqa: BLE001
+                            log.warning(
+                                f"plugin {plugin.id} failed on "
+                                f"{form.action}: {exc!r}"
+                            )
+
+                # Execute every plugin against every discovered form.
+                tasks = [run_one(p, f) for f in forms for p in plugins]
+                log.info(f"executing {len(tasks)} plugin/form tasks")
+
+                await asyncio.gather(*tasks)
+
+            finally:
+                if browser:
+                    await browser.__aexit__(None, None, None)
+            
 
         return self._finalize(ctx.findings)
 
@@ -119,8 +163,10 @@ class Engine:
             # keep the higher-confidence instance of a duplicated issue
             if existing is None or f.confidence.score > existing.confidence.score:
                 deduped[key] = f
-        result = sorted(deduped.values(),
-                        key=lambda x: (x.severity.rank, x.confidence.score),
-                        reverse=True)
+        result = sorted(
+            deduped.values(),
+            key=lambda x: (x.severity.rank, x.confidence.score),
+            reverse=True,
+        )
         log.info(f"scan finished: {len(result)} unique findings")
         return result
