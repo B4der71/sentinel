@@ -70,10 +70,14 @@ class BrowserEngine:
         if self._pw:
             await self._pw.stop()
 
-    async def verify_xss(self, form: Form, data: dict[str, str],
-                         marker: str) -> tuple[bool, str | None]:
+    async def verify_xss(
+        self,
+        form: Form,
+        data: dict[str, str],
+        marker: str,
+    ) -> tuple[bool, str | None]:
         """Return (executed?, screenshot_path)."""
-        if not self._browser:
+        if not self._context:
             return False, None
         page = await self._context.new_page()
         try:
@@ -90,17 +94,47 @@ class BrowserEngine:
 
             value = await page.evaluate("() => window.__xss || null")
 
-            
-
             executed = value == marker
             shot = None
+
             if executed:
+                await page.evaluate(
+                    """
+                    (marker) => {
+                        document.body.insertAdjacentHTML(
+                            'afterbegin',
+                            `<div style="
+                                position:fixed;
+                                top:10px;
+                                right:10px;
+                                z-index:2147483647;
+                                background:#d32f2f;
+                                color:#fff;
+                                padding:10px 14px;
+                                font:700 14px sans-serif;
+                                border-radius:4px;
+                                box-shadow:0 2px 8px rgba(0,0,0,.35);
+                                opacity:.92;
+                                pointer-events:none;
+                            ">
+                            Sentinel XSS Confirmed<br>${marker}
+                            </div>`
+                        );
+                    }
+                    """,
+                    marker,
+                )
+
+                # Give Chromium a moment to render the banner.
+                await page.wait_for_timeout(50)
+
                 shot = str(self._dir / f"xss_{marker}.png")
+
                 await page.screenshot(path=shot, full_page=True)
+
                 log.bind(plugin="xss").info(
                     f"Browser confirmed XSS execution; screenshot saved to {shot}"
                 )
-
 
             return executed, shot
         except Exception as exc:  # noqa: BLE001
@@ -116,7 +150,7 @@ class BrowserEngine:
         surface JavaScript-generated attack surface. Implemented as a thin
         render+extract; returns [] when unavailable.
         """
-        if not self._browser:
+        if not self._context:
             return []
         from sentinel.crawler.crawler import extract_forms
         page = await self._context.new_page()

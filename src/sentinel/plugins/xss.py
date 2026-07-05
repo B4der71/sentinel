@@ -25,6 +25,7 @@ from sentinel.plugins.base import Plugin
 
 
 
+
 _CHARSET_PROBE = "<\">'/"
 
 
@@ -195,7 +196,7 @@ class XssPlugin(Plugin):
             return
 
         reflection = exploitable[0]
-        
+    
         for payload in payloads_for(reflection.context, marker):
             data[param] = payload
             r2 = await self._send(ctx, form, data)
@@ -301,7 +302,9 @@ def payloads_for(context: Context, marker: str) -> list[str]:
     ``marker`` is embedded so that browser verification can detect execution
     via a sentinel (e.g. setting ``window.__marker`` or a title change).
     """
+    
     js = f"window.__xss='{marker}'"
+   
     if context is Context.SCRIPT:
         # We're already inside JS; break the string / statement.
         return [
