@@ -127,8 +127,29 @@ def _context_at(text: str, idx: int, length: int) -> Context:
 
 
 class XssPlugin(Plugin):
+
     id = "xss"
+
     name = "Cross-Site Scripting"
+
+    description = (
+        "Detect reflected Cross-Site Scripting with optional "
+        "browser verification."
+    )
+
+    category = "Injection"
+
+    tags = (
+        "OWASP A03:2021",
+        "CWE-79",
+        "Reflected XSS",
+        "Browser Verified",
+    )
+
+    requires_browser = True
+
+    requires_authentication = False
+
     default_severity = Severity.HIGH
 
     async def run(self, ctx: ScanContext, form: Form) -> None:

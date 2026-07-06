@@ -19,12 +19,27 @@ from sentinel.core.http_client import Response
 from sentinel.models import Form, Severity
 from sentinel.logging_setup import log
 
-
 class Plugin(abc.ABC):
+    # ---------- Required ----------
     id: str = "base"
     name: str = "Base Plugin"
+
+    # ---------- Optional Metadata ----------
+    description: str = "No description provided."
+    author: str = "Bader Alwashah (B4der71)"
+
+    category: str = "General"
+
+    tags: tuple[str, ...] = ()
+
     default_severity: Severity = Severity.MEDIUM
-    aggressive: bool = False          # True => requires scope.allow_aggressive
+
+    aggressive: bool = False             # Requires scope.allow_aggressive
+
+    requires_browser: bool = False
+    requires_authentication: bool = False
+
+    enabled_by_default: bool = True         
 
     def __init__(self) -> None:
         self.log = log.bind(plugin=self.id)

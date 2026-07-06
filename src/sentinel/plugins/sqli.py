@@ -93,11 +93,34 @@ def similarity(a: str, b: str) -> float:
 
 
 class SqliPlugin(Plugin):
+
     id = "sqli"
+
     name = "SQL Injection"
+
+    description = (
+        "Detect SQL Injection using error-, boolean-, "
+        "and time-based techniques."
+    )
+
+    author = "Bader Alwashah (B4der71)"
+
+    category = "Injection"
+
+    tags = (
+        "OWASP A03:2021",
+        "CWE-89",
+        "Error-based",
+        "Boolean-based",
+        "Time-based",
+    )
+
     default_severity = Severity.HIGH
 
     aggressive = False
+
+    requires_browser = False
+    requires_authentication = False
 
 
     ERROR_PAYLOADS = [

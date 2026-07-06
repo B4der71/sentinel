@@ -28,9 +28,35 @@ _CHECKS = {
 
 
 class HeadersPlugin(Plugin):
+    
     id = "headers"
+
     name = "Security Headers & Clickjacking"
+
+    description = (
+        "Detect missing HTTP security headers and "
+        "clickjacking protections."
+    )
+
+    author = "Bader Alwashah (B4der71)"
+
+    category = "Configuration"
+
+    tags = (
+        "OWASP A05:2021",
+        "CWE-693",
+        "CSP",
+        "HSTS",
+        "Clickjacking",
+        "Security Headers",
+    )
+
     default_severity = Severity.LOW
+
+    aggressive = False
+
+    requires_browser = False
+    requires_authentication = False
 
     def __init__(self) -> None:
         super().__init__()

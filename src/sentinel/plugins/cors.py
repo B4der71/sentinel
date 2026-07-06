@@ -15,9 +15,34 @@ _EVIL = "https://sentinel-cors-probe.example"
 
 
 class CorsPlugin(Plugin):
+    
     id = "cors"
+
     name = "CORS Misconfiguration"
+
+    description = (
+        "Detect insecure Cross-Origin Resource Sharing (CORS) "
+        "configurations."
+    )
+
+    author = "Bader Alwashah (B4der71)"
+
+    category = "Configuration"
+
+    tags = (
+        "OWASP A05:2021",
+        "CWE-942",
+        "CORS",
+        "Access-Control-Allow-Origin",
+        "Cross-Origin Resource Sharing",
+    )
+
     default_severity = Severity.MEDIUM
+
+    aggressive = False
+
+    requires_browser = False
+    requires_authentication = False
 
     def __init__(self) -> None:
         super().__init__()

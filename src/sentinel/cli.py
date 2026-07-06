@@ -1,14 +1,17 @@
-"""Command-line interface.
+"""
+Sentinel command-line interface.
 
-Preserves the spirit of the original ``main.py`` flags (-u/--url, --xss,
---sqli, --all, --crawl, auth) while adding config-file driven runs, an explicit
-scope confirmation for aggressive scans, and multi-format reporting.
+Builds the runtime configuration, exposes dynamically discovered plugins as
+command-line options, manages authentication and scan scope, and generates
+JSON, HTML, and executive reports.
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
 from pathlib import Path
+
+from sentinel.plugins import ALL_PLUGINS
 
 from sentinel.core.config import Config
 from sentinel.core.engine import Engine
@@ -25,34 +28,40 @@ def _build_config(args: argparse.Namespace) -> Config:
     cfg = Config.load(args.config) if args.config else Config()
 
     if args.all:
-        cfg.plugins = {k: True for k in cfg.plugins} | {
-            "xss": True, "sqli": True, "headers": True, "cors": True, "redirect": True}
+        cfg.plugins = {
+            plugin_id: True
+            for plugin_id in ALL_PLUGINS
+        }
     else:
-        selected = {"xss": args.xss, "sqli": args.sqli,
-                    "headers": args.headers, "cors": args.cors,
-                    "redirect": args.redirect}
+        selected = {
+            plugin_id: getattr(args, plugin_id)
+            for plugin_id in ALL_PLUGINS
+        }
+
         if any(selected.values()):
-            cfg.plugins = {k: v for k, v in selected.items()}
+            cfg.plugins = selected
 
     if args.username and args.password:
         cfg.auth.type = "form"
         cfg.auth.login_url = args.login_url or _guess_login(args.url)
         cfg.auth.username = args.username
         cfg.auth.password = args.password
+
     if args.bearer:
         cfg.auth.type = "bearer"
         cfg.auth.token = args.bearer
 
     if args.max_pages:
         cfg.crawler.max_pages = args.max_pages
+
     if args.max_depth:
         cfg.crawler.max_depth = args.max_depth
+
     if args.aggressive:
         cfg.scanner.allow_aggressive = True
-    cfg.crawler.enabled = args.crawl
-    
 
-    
+    cfg.crawler.enabled = args.crawl
+
     return cfg
 
 
@@ -75,10 +84,21 @@ async def _run(args: argparse.Namespace) -> int:
             return 2
 
     engine = Engine(cfg)
-    findings = await engine.scan(args.url)
+
+    try:
+        findings = await engine.scan(args.url)
+
+    except RuntimeError as exc:
+        log.error(exc)
+        return 1
+
+    except Exception:
+        log.exception("Unexpected error during scan.")
+        return 1
 
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
+
     JsonReporter().write(findings, out / "report.json")
     HtmlReporter().write(findings, out / "report.html")
     ExecutiveReporter().write(findings, out / "executive_summary.md")
@@ -128,9 +148,10 @@ def main() -> None:
         action="version",
         version=(
             f"Sentinel {__version__}\n"
-            "Author: Bader Alwashah\n"
-            "GitHub: https://github.com/B4der71"
-        ),
+            "Author : Bader Alwashah\n"
+            "GitHub : https://github.com/B4der71\n"
+            f"Plugins: {len(ALL_PLUGINS)} discovered"
+        )
     )
 
     p.add_argument(
@@ -145,39 +166,31 @@ def main() -> None:
     )
 
     p.add_argument(
-        "-o", "--out-dir",  default="reports",help="Directory for generated reports"
+        "-o",
+        "--out-dir",
+        default="reports",
+        help="Directory for generated reports",
     )
 
-    p.add_argument("--all", action="store_true", help="Enable all plugins")
-    p.add_argument(
-    "--xss",
-    action="store_true",
-    help="Enable reflected Cross-Site Scripting detection"
-    )
+    p.add_argument("--all", action="store_true",help="Enable all available plugins")
+    
+    # Automatically generate plugin CLI arguments
+    for plugin in sorted(
+        ALL_PLUGINS.values(),
+        key=lambda plugin_cls: plugin_cls.id,
+    ):
+        help_text = (
+            f"{plugin.name} "
+            f"({plugin.category}, "
+            f"{plugin.default_severity.value.title()}) - "
+            f"{plugin.description}"
+        )
 
-    p.add_argument(
-        "--sqli",
-        action="store_true",
-        help="Enable SQL Injection detection"
-    )
-
-    p.add_argument(
-        "--headers",
-        action="store_true",
-        help="Check security headers and clickjacking protections"
-    )
-
-    p.add_argument(
-        "--cors",
-        action="store_true",
-        help="Check for CORS misconfigurations"
-    )
-
-    p.add_argument(
-        "--redirect",
-        action="store_true",
-        help="Check for open redirect vulnerabilities"
-    )
+        p.add_argument(
+            f"--{plugin.id}",
+            action="store_true",
+            help=help_text,
+        )
 
     p.add_argument(
     "--username",

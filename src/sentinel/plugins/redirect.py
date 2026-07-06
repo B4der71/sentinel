@@ -19,9 +19,33 @@ _HINTS = ("url", "next", "return", "redirect", "dest", "continue", "to", "goto")
 
 
 class OpenRedirectPlugin(Plugin):
+
     id = "redirect"
+
     name = "Open Redirect"
+
+    description = (
+        "Detect unvalidated redirects to attacker-controlled destinations."
+    )
+
+    author = "Bader Alwashah (B4der71)"
+
+    category = "Validation"
+
+    tags = (
+        "OWASP A01:2021",
+        "CWE-601",
+        "Open Redirect",
+        "Unvalidated Redirect",
+        "Location Header",
+    )
+
     default_severity = Severity.MEDIUM
+
+    aggressive = False
+
+    requires_browser = False
+    requires_authentication = False
 
     async def run(self, ctx: ScanContext, form: Form) -> None:
         base = form.baseline_data()
